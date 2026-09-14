@@ -1,6 +1,6 @@
 # LakePG
 
-**An open-format, cloud-native database engine.**
+**An open-format, cloud-native database engine — built from scratch, to learn how database engines work.**
 
 LakePG is a from-scratch implementation of a third-generation database storage
 engine: one that persists transactional state in the **standard PostgreSQL 8 KiB
@@ -8,11 +8,47 @@ page format** on commodity object storage, so the same bytes can serve
 sub-millisecond OLTP *and* vectorised analytical scans with no proprietary
 storage layer in between.
 
-It is a learning project, built to production engineering standards.
+---
+
+## Provenance — read this first
+
+> [!IMPORTANT]
+> **This is not an original architecture, and it is not a product.** It is a
+> learning reimplementation of two existing systems, written to understand them
+> by rebuilding them.
+
+The design is taken from:
+
+* **[Neon](https://neon.tech)** — the disaggregated pageserver, the two-dimensional
+  `(key, LSN)` layer index, delta and image layers, `GetPage@LSN`, safekeepers, and
+  copy-on-write branching. Neon was acquired by Databricks in 2025.
+* **Databricks Lakebase** (VLDB 2026) — Direct Access for external analytical
+  readers, the `wal2delta` logical decoding pipeline, and Direct-to-Storage bulk
+  ingestion.
+* **PostgreSQL** — the on-disk page format, reproduced byte-for-byte.
+
+Every architectural idea here belongs to those systems. What is mine is the
+implementation, the tests, and the explanations.
+
+**Why say so plainly?** Because reimplementing a known-good design is the right
+way to learn systems engineering — you discover why each decision was forced,
+with the reassurance that the destination is reachable. Claiming novelty would
+be both false and a weaker claim than the true one.
+
+### What this is not
+
+* **Not production software.** Do not put data in it.
+* **No indexes.** There is no B-tree; every query is a sequential scan.
+* **No vacuum**, free space map, or visibility map.
+* **No SQL parser, planner, or optimizer.** The API is programmatic.
+* **No safekeeper quorum.** WAL durability is single-node.
+
+These are scope decisions that keep the project finishable by one person, not
+oversights.
 
 ---
 
-## Why
+## Why the architecture looks like this
 
 Cloud databases have gone through three architectural generations:
 
@@ -32,7 +68,47 @@ Generation 3's insight: if state is persisted in an **open, documented page
 format** on object storage, any engine can read it in parallel, directly, with
 zero impact on the transactional primary. The bytes themselves become the API.
 
-LakePG implements that idea from first principles.
+### The price of that idea
+
+The PostgreSQL page format is row-major, with a per-row header and
+variable-length attributes — close to the worst possible layout for analytical
+scanning. A columnar format would scan far faster. Generation 3 accepts that
+cost to avoid keeping two copies of the data. From the Lakebase paper's
+measurements:
+
+| | |
+|---|---|
+| Space amplification | ~7x |
+| Analytical scan slowdown under 400 QPS of concurrent OLTP | 1.76x |
+| OLTP degradation caused by concurrent analytical scans | **0%** |
+| Bulk ingest speedup via Direct-to-Storage at 1 TB | 73.3x |
+
+The 0% row is the justification. Analytics gets slower in absolute terms but
+stops *interfering*, and scales elastically because readers never touch the
+primary.
+
+---
+
+## Learning path
+
+The architecture here is easier to follow if you see *why* each decision was
+forced. A companion ten-module course derives the whole design from first
+principles — each module poses a problem, shows the obvious solution failing
+with measurements, then builds the real one:
+
+| Module | Topic |
+|---|---|
+| 01 | Why pages exist at all |
+| 02–04 | Slotted pages, compaction, checksums — **implemented in this repo** |
+| 05–06 | Tuple encoding, MVCC visibility |
+| 07 | Write-ahead logging and crash recovery |
+| 08–10 | Disaggregated pageserver, Direct Access, O(1) branching |
+
+The course deliberately runs ahead of the implementation: modules 05–10 teach
+designs this repository has not built yet. Each of those modules ships its own
+standalone runnable demo.
+
+
 
 ---
 
