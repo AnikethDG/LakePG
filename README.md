@@ -89,29 +89,6 @@ primary.
 
 ---
 
-## Learning path
-
-The architecture here is easier to follow if you see *why* each decision was
-forced. A companion ten-module course derives the whole design from first
-principles — each module poses a problem, shows the obvious solution failing
-with measurements, then builds the real one:
-
-| Module | Topic |
-|---|---|
-| 01 | Why pages exist at all |
-| 02–04 | Slotted pages, compaction, checksums — **implemented in this repo** |
-| 05–06 | Tuple encoding, MVCC visibility |
-| 07 | Write-ahead logging and crash recovery |
-| 08–10 | Disaggregated pageserver, Direct Access, O(1) branching |
-
-The course deliberately runs ahead of the implementation: modules 05–10 teach
-designs this repository has not built yet. Each of those modules ships its own
-standalone runnable demo.
-
-
-
----
-
 ## Status
 
 Built in phases. Each phase ships with tests before the next begins.
