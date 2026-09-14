@@ -204,6 +204,25 @@ class ItemId:
 class ItemPointer:
     """A TID: the physical address of a tuple within a relation fork.
 
+    This is an in-memory value only. Nothing in Phase 2 serialises it.
+
+    Note:
+        When Phase 3 writes TIDs on disk as ``t_ctid``, the encoding is *not*
+        a little-endian uint32 followed by a uint16. PostgreSQL's
+        ``ItemPointerData`` is::
+
+            typedef struct BlockIdData { uint16 bi_hi; uint16 bi_lo; } BlockIdData;
+            typedef struct ItemPointerData {
+                BlockIdData ip_blkid;
+                OffsetNumber ip_posid;   /* uint16 */
+            } ItemPointerData;
+
+        The block number is split into two uint16 halves specifically so the
+        6-byte struct needs only 2-byte alignment. Packing it as a uint32
+        produces bytes that agree with PostgreSQL for every block below 65536
+        and disagree above it -- a bug that stays invisible until a table
+        passes 512 MB.
+
     Attributes:
         block_number: Zero-based block index within the fork.
         offset_number: One-based index into the block's line pointer array.
